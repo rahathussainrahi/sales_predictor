@@ -1,0 +1,44 @@
+:root {
+  font-family: 'DM Sans', sans-serif;
+  color: #172523;
+  background: #f4f7f5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --ink: #172523;
+  --muted: #71807b;
+  --line: #e2e9e5;
+  --paper: #ffffff;
+  --canvas: #f4f7f5;
+  --green: #147d64;
+  --green-soft: #e9f5ef;
+  --blue: #3568d4;
+  --blue-soft: #edf3ff;
+  --orange: #c76a32;
+  --red: #bd514e;
+  font-optical-sizing: auto;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 0;
+  min-height: 100vh;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+a {
+  color: inherit;
+}
