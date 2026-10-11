@@ -1,3 +1,4 @@
+import os
 from datetime import timedelta
 from functools import lru_cache
 from pathlib import Path
@@ -22,12 +23,26 @@ app = FastAPI(
     description="Machine learning API for retail sales prediction",
     version="1.0.0",
 )
+
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+allowed_origins = [
+    origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()
+]
+if not allowed_origins:
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[],
+    allow_origins=allowed_origins,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 
@@ -42,12 +57,14 @@ async def root() -> dict[str, str]:
 
 @app.get("/health")
 async def health() -> dict[str, str | bool]:
+    model_ready = hasattr(MODEL, "predict") and MODEL_PATH.is_file()
     return {
-        "status": "ok",
-        "model_loaded": True,
+        "status": "ok" if model_ready else "error",
+        "model_loaded": model_ready,
         "model_path": str(MODEL_PATH),
         "pipeline_type": type(MODEL).__name__,
     }
+
 
 
 @lru_cache(maxsize=1)
@@ -223,17 +240,28 @@ async def features() -> list[dict[str, str]]:
 @app.post("/api/predict", response_model=PredictionResponse)
 async def predict(payload: PredictionRequest) -> PredictionResponse:
     prediction = predict_sales(payload)
+    if payload.open == 0 or prediction <= 0.0:
+        lower_bound = 0.0
+        upper_bound = 0.0
+        prediction = 0.0
+    else:
+        lower_bound = round(max(prediction * 0.82, 0.0), 2)
+        upper_bound = round(prediction * 1.18, 2)
+
     return PredictionResponse(
         predictedSales=round(prediction, 2),
-        lowerBound=round(max(prediction * 0.82, 0.0), 2),
-        upperBound=round(prediction * 1.18, 2),
+        lowerBound=lower_bound,
+        upperBound=upper_bound,
         modelStatus="trained",
         input=payload.model_dump(exclude={"open"}),
+        intervalType="heuristic-envelope",
     )
 
 
 @app.post("/api/what-if")
 async def what_if(payload: ScenarioRequest) -> dict[str, float | str]:
+    # Fixed reference date represents the final observation day in the Rossmann dataset (2015-07-31).
+    # DayOfWeek arithmetic aligns cyclical/calendar features with the requested weekday scenario.
     reference_date = pd.Timestamp("2015-07-31").date()
     reference_weekday = reference_date.isoweekday()
     scenario_date = reference_date + timedelta(
@@ -248,8 +276,9 @@ async def what_if(payload: ScenarioRequest) -> dict[str, float | str]:
         stateHoliday="0",
         schoolHoliday=payload.schoolHoliday,
     )
+    sales = predict_sales(request)
     return {
-        "predictedSales": round(predict_sales(request), 2),
+        "predictedSales": round(sales, 2),
         "modelStatus": "trained",
     }
 
@@ -287,11 +316,11 @@ async def model_info() -> dict:
     }
 
 
-@app.get("/api/model/evaluation")
-async def evaluation() -> dict:
+@lru_cache(maxsize=1)
+def _load_full_data_evaluation() -> dict:
     data_path = PROJECT_ROOT / "data" / "df_model.csv"
     if not data_path.is_file():
-        raise HTTPException(status_code=404, detail="Evaluation dataset not available.")
+        raise FileNotFoundError("Evaluation dataset df_model.csv not found.")
 
     data = pd.read_csv(data_path)
     data["Date"] = pd.to_datetime(data["Date"])
@@ -316,6 +345,8 @@ async def evaluation() -> dict:
     return {
         "status": "Evaluated",
         "source": "api-full-data",
+        "evaluationScope": "Full-dataset in-sample diagnostic (df_model.csv)",
+        "isHeldOutTest": False,
         "metrics": {
             "r2": round(1 - residual_sum_of_squares / total_sum_of_squares, 6)
             if total_sum_of_squares
@@ -345,3 +376,12 @@ async def evaluation() -> dict:
             for interval, count in residual_bins.items()
         ],
     }
+
+
+@app.get("/api/model/evaluation")
+async def evaluation() -> dict:
+    try:
+        return _load_full_data_evaluation()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+

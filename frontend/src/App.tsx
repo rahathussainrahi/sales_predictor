@@ -56,7 +56,7 @@ const pageDescriptions: Record<PageKey, string> = {
     'What-If Analysis': 'Compare simulated sales scenarios by changing business conditions.',
 }
 
-const demoMode = !import.meta.env.VITE_API_BASE_URL
+import { dashboardData } from './mock/data'
 
 function App() {
     const [activePage, setActivePage] = useState<PageKey>('Overview')
@@ -67,15 +67,33 @@ function App() {
     const [dashboard, setDashboard] = useState<DashboardData | null>(null)
     const [loading, setLoading] = useState(true)
     const [loadError, setLoadError] = useState('')
+    const [forceDemo, setForceDemo] = useState(false)
+
+    const isDemoMode = forceDemo || !import.meta.env.VITE_API_BASE_URL
 
     useEffect(() => {
         let cancelled = false
-        api.dashboard()
-            .then((value) => { if (!cancelled) setDashboard(value) })
-            .catch((error: unknown) => { if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Dashboard data could not be loaded.') })
-            .finally(() => { if (!cancelled) setLoading(false) })
+        const loadPromise = isDemoMode ? Promise.resolve(dashboardData) : api.dashboard()
+        loadPromise
+            .then((value) => {
+                if (!cancelled) {
+                    setDashboard(value)
+                    setLoadError('')
+                }
+            })
+            .catch((error: unknown) => {
+                if (!cancelled) {
+                    setLoadError(error instanceof Error ? error.message : 'Dashboard data could not be loaded.')
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setLoading(false)
+                }
+            })
         return () => { cancelled = true }
-    }, [])
+    }, [isDemoMode])
+
 
     function renderPage() {
         if (!dashboard) return null
@@ -87,10 +105,11 @@ function App() {
             case 'Feature Engineering': return <FeatureEngineeringPage model={dashboard.model} />
             case 'Model': return <ModelPage model={dashboard.model} onNavigate={setActivePage} />
             case 'Evaluation': return <EvaluationPage data={dashboard.evaluation} />
-            case 'Prediction': return <PredictionPage apiConfigured={!demoMode} onPredict={api.predict} />
-            case 'What-If Analysis': return <WhatIfPage apiConfigured={!demoMode} onWhatIf={api.whatIf} />
+            case 'Prediction': return <PredictionPage apiConfigured={!isDemoMode} onPredict={api.predict} />
+            case 'What-If Analysis': return <WhatIfPage apiConfigured={!isDemoMode} onWhatIf={api.whatIf} />
         }
     }
+
 
     return (
         <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -117,10 +136,10 @@ function App() {
                 </nav>
                 <div className="sidebar-spacer" />
                 <div className="sidebar-status">
-                    <div className="status-head"><span className="status-dot" /> {demoMode ? 'Demo environment' : 'API environment'} <span>{demoMode ? 'DEMO' : 'API'}</span></div>
+                    <div className="status-head"><span className="status-dot" /> {isDemoMode ? 'Demo environment' : 'API environment'} <span>{isDemoMode ? 'DEMO' : 'API'}</span></div>
                     <div className="status-row"><span>Model</span><strong>Linear Regression</strong></div>
                     <div className="status-row"><span>Dataset</span><strong>Rossmann Retail</strong></div>
-                    <div className="status-note">{demoMode ? 'Demo data · simulated predictions' : 'Live dataset analysis · saved model predictions'}</div>
+                    <div className="status-note">{isDemoMode ? 'Demo data · simulated predictions' : 'Live dataset analysis · saved model predictions'}</div>
                 </div>
                 <button className="collapse-button" onClick={() => setSidebarCollapsed((collapsed) => !collapsed)} title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} type="button"><PanelLeftClose size={17} /><span>{sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}</span></button>
                 <div className="sidebar-foot"><span className="avatar">RS</span><span><strong>Retail workspace</strong><small>Local project</small></span><Menu size={16} /></div>
@@ -130,7 +149,7 @@ function App() {
                 <header className="topbar">
                     <button className="mobile-menu" type="button" aria-label="Open navigation" onClick={() => setMobileMenuOpen((open) => !open)}><Menu size={19} /></button>
                     <div className="breadcrumbs"><span>Retail Intelligence</span><span className="crumb-slash">/</span><strong>{activePage}</strong></div>
-                    <div className="topbar-status"><span><i className="status-dot" /> {demoMode ? 'Overview demo' : 'Training CSV live'}</span><span><i className="status-dot status-demo" /> {demoMode ? 'Simulated prediction' : 'Prediction API ready'}</span><button aria-label="Open lab details" className="topbar-lab-button" onClick={() => setShowLabDetails(true)} title="Open lab details" type="button"><ClipboardCheck size={15} /></button></div>
+                    <div className="topbar-status"><span><i className="status-dot" /> {isDemoMode ? 'Overview demo' : 'Training CSV live'}</span><span><i className={`status-dot ${isDemoMode ? 'status-demo' : ''}`} /> {isDemoMode ? 'Simulated prediction' : 'Prediction API ready'}</span><button aria-label="Open lab details" className="topbar-lab-button" onClick={() => setShowLabDetails(true)} title="Open lab details" type="button"><ClipboardCheck size={15} /></button></div>
                 </header>
                 <div className="page-content">
                     <div className="page-heading">
@@ -138,9 +157,19 @@ function App() {
                         <div className="heading-actions"><button className="outline-button" onClick={() => setShowLabDetails(true)} type="button"><ClipboardCheck size={15} /> Lab details</button><button className="primary-button" onClick={() => setActivePage('Evaluation')} type="button"><Gauge size={15} /> Model evaluation</button></div>
                     </div>
                     {loading && <div className="loading-state"><RefreshCw className="spin" size={17} /> Loading dashboard data…</div>}
-                    {loadError && <div className="load-error"><strong>Could not load dashboard data</strong><span>{loadError}</span><button className="outline-button" onClick={() => window.location.reload()} type="button"><RefreshCw size={14} /> Retry</button></div>}
+                    {loadError && (
+                        <div className="load-error">
+                            <strong>Backend connection error</strong>
+                            <span>{loadError}</span>
+                            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
+                                <button className="outline-button" onClick={() => window.location.reload()} type="button"><RefreshCw size={14} /> Retry connection</button>
+                                <button className="primary-button" onClick={() => { setForceDemo(true); setLoadError(''); }} type="button">Switch to Demo Mode</button>
+                            </div>
+                        </div>
+                    )}
                     {!loading && !loadError && dashboard && <Suspense fallback={<div className="loading-state"><RefreshCw className="spin" size={17} /> Loading {activePage.toLowerCase()}…</div>}>{renderPage()}</Suspense>}
                 </div>
+
             </main>
             {mobileMenuOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileMenuOpen(false)} type="button" />}
             {showLabDetails && <LabDetailsModal onClose={() => setShowLabDetails(false)} />}

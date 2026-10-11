@@ -19,8 +19,8 @@ export function EvaluationPage({ data }: { data: EvaluationData }) {
             </div>
             <div className="metrics-grid evaluation-metrics">
                 <Metric icon={Gauge} label={`${metricPrefix} R²`} value={metrics.r2 === null ? '—' : metrics.r2.toFixed(4)} detail={fullDataset ? 'Not a holdout score' : 'Variance explained on holdout'} />
-                <Metric icon={Target} label={`${metricPrefix} MAE`} value={metrics.mae === null ? '—' : `PKR ${metrics.mae.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} detail="Mean absolute error" />
-                <Metric icon={TrendingDown} label={`${metricPrefix} RMSE`} value={metrics.rmse === null ? '—' : `PKR ${metrics.rmse.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} detail="Penalizes larger errors" />
+                <Metric icon={Target} label={`${metricPrefix} MAE`} value={metrics.mae === null ? '—' : `${metrics.mae.toLocaleString(undefined, { maximumFractionDigits: 2 })} units`} detail="Mean absolute error" />
+                <Metric icon={TrendingDown} label={`${metricPrefix} RMSE`} value={metrics.rmse === null ? '—' : `${metrics.rmse.toLocaleString(undefined, { maximumFractionDigits: 2 })} units`} detail="Penalizes larger errors" />
                 {metrics.mape !== undefined && metrics.mape !== null && <Metric icon={Target} label="MAPE" value={`${(metrics.mape * 100).toFixed(2)}%`} detail={`${(metrics.zeroActualExcluded ?? 0).toLocaleString()} zero-sales rows excluded`} />}
             </div>
             <Panel>
@@ -28,17 +28,17 @@ export function EvaluationPage({ data }: { data: EvaluationData }) {
                 {trainingMetrics ? (
                     <div className="table-scroll">
                         <table>
-                            <thead><tr><th>Split</th><th>Rows</th><th>MAE</th><th>RMSE</th><th>R²</th></tr></thead>
+                            <thead><tr><th>Split</th><th>Rows</th><th>MAE (units)</th><th>RMSE (units)</th><th>R²</th></tr></thead>
                             <tbody>
-                                <tr><td>Training</td><td>{data.trainingRows?.toLocaleString() ?? '—'}</td><td>PKR {trainingMetrics.mae.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td><td>PKR {trainingMetrics.rmse.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td><td>{trainingMetrics.r2.toFixed(4)}</td></tr>
-                                <tr><td>Test</td><td>{data.testingRows?.toLocaleString() ?? '—'}</td><td>{metrics.mae === null ? '—' : `PKR ${metrics.mae.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</td><td>{metrics.rmse === null ? '—' : `PKR ${metrics.rmse.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</td><td>{metrics.r2 === null ? '—' : metrics.r2.toFixed(4)}</td></tr>
+                                <tr><td>Training</td><td>{data.trainingRows?.toLocaleString() ?? '—'}</td><td>{trainingMetrics.mae.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td><td>{trainingMetrics.rmse.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td><td>{trainingMetrics.r2.toFixed(4)}</td></tr>
+                                <tr><td>Test</td><td>{data.testingRows?.toLocaleString() ?? '—'}</td><td>{metrics.mae === null ? '—' : metrics.mae.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td><td>{metrics.rmse === null ? '—' : metrics.rmse.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td><td>{metrics.r2 === null ? '—' : metrics.r2.toFixed(4)}</td></tr>
                             </tbody>
                         </table>
                     </div>
                 ) : fullDataset ? (
                     <p className="small-explainer">Full-dataset residual metrics are available below. A separate held-out score cannot be reported because the saved pipeline does not include its split membership.</p>
                 ) : <EmptyState title="Training comparison unavailable" detail="The evaluation response does not include training-set metrics." />}
-                {data.meanResidual !== undefined && <p className="small-explainer">Mean {fullDataset ? 'dataset' : 'held-out'} residual: PKR {data.meanResidual.toLocaleString(undefined, { maximumFractionDigits: 2 })}. Positive values indicate average underprediction; negative values indicate average overprediction.</p>}
+                {data.meanResidual !== undefined && <p className="small-explainer">Mean {fullDataset ? 'dataset' : 'held-out'} residual: {data.meanResidual.toLocaleString(undefined, { maximumFractionDigits: 2 })} sales units. Positive values indicate average underprediction; negative values indicate average overprediction.</p>}
             </Panel>
             <div className="two-column-layout">
                 <Panel><PanelHeading title="Actual vs predicted" detail={`${fullDataset ? 'Full dataset' : 'Held-out rows'} · ${data.actualPredicted.length.toLocaleString()} sampled points`} />{data.actualPredicted.length ? <div className="chart-area chart-large"><EvaluationScatter data={data.actualPredicted} /></div> : <EmptyState title={evaluated ? 'Prediction rows not attached' : 'No evaluation run yet'} detail="Prediction rows are required to render this chart." />}</Panel>

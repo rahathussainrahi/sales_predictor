@@ -1,23 +1,22 @@
 import type { ReactNode } from 'react'
 import { ArrowDownRight, ArrowUpRight, Info } from 'lucide-react'
 
-export function formatPkr(value: number, compact = false): string {
-  return new Intl.NumberFormat('en-PK', {
-    style: 'currency', currency: 'PKR', maximumFractionDigits: compact ? 1 : 0,
-    notation: compact ? 'compact' : 'standard',
-  }).format(value)
-}
-
-export function formatNumber(value: number): string {
-  return new Intl.NumberFormat('en-PK', { maximumFractionDigits: 0 }).format(value)
-}
-
 export function formatSalesUnits(value: number, compact = false): string {
-  return new Intl.NumberFormat('en', {
+  return new Intl.NumberFormat('en-US', {
     maximumFractionDigits: compact ? 1 : 0,
     notation: compact ? 'compact' : 'standard',
   }).format(value)
 }
+
+export function formatPkr(value: number, compact = false): string {
+  // Alias for backward compatibility; formats as dataset units
+  return formatSalesUnits(value, compact)
+}
+
+export function formatNumber(value: number): string {
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value)
+}
+
 
 export function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <section className={`panel ${className}`}>{children}</section>
