@@ -45,4 +45,8 @@ def prepare_feature_row(payload: PredictionRequest) -> pd.DataFrame:
 
 def predict_sales(payload: PredictionRequest) -> float:
     feature_row = prepare_feature_row(payload)
-    return float(MODEL.predict(feature_row)[0])
+    if payload.open == 0:
+        return 0.0
+    raw_prediction = float(MODEL.predict(feature_row)[0])
+    return max(0.0, raw_prediction)
+
